@@ -46,17 +46,17 @@ def store_in_faiss(embeddings):
     index.add(np.array(embeddings, dtype='float32'))
     faiss.write_index(index, "embeddings.index")
 
-def store_in_chromadb(items):
+def store_in_chromadb(chromadb_path, collection_name, items):
     """Store embeddings, item IDs, and URLs in ChromaDB."""
-    client = chromadb.PersistentClient(path="chromadb_store")
-    collection = client.get_or_create_collection(name="embeddings")
+    client = chromadb.PersistentClient(path=chromadb_path)
+    collection = client.get_or_create_collection(name=collection_name)
     for item in items:
         collection.add(ids=[str(item['id'])], embeddings=[item['embedding']], documents=[json.dumps(item)])
 
-def search_chromadb(query_text, top_k=5):
+def search_chromadb(chromadb_path, collection_name, query_text, top_k=5):
     """Search ChromaDB for similar embeddings."""
-    client = chromadb.PersistentClient(path="chromadb_store")
-    collection = client.get_collection(name="embeddings")
+    client = chromadb.PersistentClient(path=chromadb_path)
+    collection = client.get_collection(name=collection_name)
     query_embedding = get_ollama_embedding(query_text)
     query_embedding = normalize_embedding(query_embedding)
     results = collection.query(query_embeddings=[query_embedding], n_results=top_k)
@@ -70,10 +70,10 @@ def normalize_embedding(embedding):
     return embedding / norm if norm > 0 else embedding
 
 
-def update_chromadb_embeddings(fname):
+def update_chromadb_embeddings(fname, collection_name):
     """Retrieve, normalize, and update embeddings in ChromaDB."""
     client = chromadb.PersistentClient(path=fname)
-    collection = client.get_collection(name="embeddings")
+    collection = client.get_collection(name=collection_name)
 
     # Retrieve all stored embeddings
     results = collection.get()  # Retrieves all data (ids, embeddings, and documents)
@@ -102,7 +102,7 @@ def main():
     
     parser = argparse.ArgumentParser(description="Embedding storage and retrieval")
     parser.add_argument("--jsonl", type=str, required=True, help="Path to JSONL file")
-    parser.add_argument("--db-name", type=str, required=True, help="Name of the ChromaDB collection")
+    parser.add_argument("--collection-name", type=str, required=True, help="Name of the ChromaDB collection")
 
     args = parser.parse_args()
     file_path = args.jsonl
@@ -127,14 +127,14 @@ def main():
         })
     
     # Store in FAISS or ChromaDB
-    store_in_chromadb(items)
+    store_in_chromadb(chromadb_path="chromadb_store", collection_name=args.collection_name, items=items)
     
     print("Embeddings stored successfully!")
     """
 
     # Example search
     query = "Puff-sleeve open-back faux-leather top"
-    results = search_chromadb(query)
+    results = search_chromadb(chromadb_path="chromadb_store", collection_name=args.collection_name, query_text=query)
     print("Search results:", results)
 
 if __name__ == "__main__":
